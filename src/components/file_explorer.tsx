@@ -19,4 +19,10 @@ export default function FileExplorer() {
     }
     FileInit();
   }, []);
+
+  async function loadDirectory(path: string) {
+    try {
+      const entries: DirEntry[] = await redDirPath(path);
+    } catch {}
+  }
 }
