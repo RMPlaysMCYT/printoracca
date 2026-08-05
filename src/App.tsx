@@ -16,7 +16,9 @@ function App() {
     <main className="container">
       <div>
         <h1>PROJECT PISO PRINT</h1>
-        <button>Start</button>
+        <button onClick={(
+          
+        )}>Start</button>
       </div>
     </main>
   );
