@@ -17,7 +17,7 @@ function App() {
       <div>
         <h1>PROJECT PISO PRINT</h1>
         <button onClick={(
-          
+          if(){}else{}
         )}>Start</button>
       </div>
     </main>
