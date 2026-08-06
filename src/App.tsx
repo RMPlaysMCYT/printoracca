@@ -25,7 +25,7 @@ function App() {
                 <h1>PROJECT PISO PRINT</h1>
                 
                 {showDevicePrompt ? (
-                    <InsertDevice />
+                    <InsertDevice onClose={() => setShowDevicePrompt(false)} />
                 ) : (
                     <button onClick={() => setShowDevicePrompt(true)}>Start</button>
                 )}
