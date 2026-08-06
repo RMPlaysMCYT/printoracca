@@ -30,14 +30,6 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ],
-    "permissions": [
-      "core:path:default",
-      "core:event:default",
-      "fs:allow-read-file",
-      "fs:allow-write-file",
-      "dialog:allow-message",
-      "opener:allow-open-path"
     ]
   }
 }
