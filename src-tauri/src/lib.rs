@@ -6,7 +6,7 @@ fn greet(name: &str) -> String {
 
 #[tauri::command]
 fn app_version() -> String {
-    env!("TAURI_APP_VERSION").into()
+    env!("CARGO_PKG_VERSION").into()
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
