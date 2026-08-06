@@ -9,14 +9,12 @@
     "core:event:default",
     "opener:default",
     "fs:default",
-    "dialog:default",
     {
       "identifier": "fs:allow-exists",
       "allow": []
     },
     "fs:allow-read-file",
     "fs:allow-write-file",
-    "dialog:allow-message",
     "opener:allow-open-path"
   ]
 }
