@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 import { AppFooter } from "./widgets/footer";
 import { useTauriInfo } from "./widgets/tauri_version";
-import { InsertDevice } from "./widgets/device_prompt";
+import { InsertDevice } from "./components/ui/device_prompt";
 
 function App() {
     const [greetMsg, setGreetMsg] = useState("");
