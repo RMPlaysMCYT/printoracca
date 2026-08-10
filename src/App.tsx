@@ -10,11 +10,7 @@ function App() {
   const [name, setName] = useState("");
   const [showDevicePrompt, setShowDevicePrompt] = useState(false);
   const { isTauriApp, appVersion, isLoading } = useTauriInfo();
-
-  async function greet() {
-    setGreetMsg(await invoke("greet", { name }));
-  }
-
+  
   if (isLoading) {
     return <div>Loading...</div>;
   }
