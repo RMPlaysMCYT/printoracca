@@ -13,17 +13,17 @@ function App() {
   const [showDevicePrompt, setShowDevicePrompt] = useState(false);
   const [showFileExplorer, setShowFileExplorer] = useState(false);
   const [usbPath, setUsbPath] = useState<string>("");
-  const [syncStatus, setSyncStatus] = useState<string>("");
+  const [usbLabel, setUsbLabel] = useState<string>("");
   const { isTauriApp, appVersion, isLoading } = useTauriInfo();
   
   if (isLoading) {
     return <div>Loading...</div>;
   }
 
-  // Handle USB detection and sync
-  const handleUSBDetected = (path: string) => {
+  // Handle USB detection and navigation to file explorer
+  const handleUSBDetected = (path: string, label: string) => {
     setUsbPath(path);
-    setSyncStatus(`USB detected at: ${path}`);
+    setUsbLabel(label);
     setShowFileExplorer(true);
     setShowDevicePrompt(false);
   };
@@ -31,13 +31,17 @@ function App() {
   // Handle cancel/close
   const handleClosePrompt = () => {
     setShowDevicePrompt(false);
-    // Optionally show a message or fallback
   };
 
   // Handle going back from file explorer to USB prompt
   const handleBackToUSB = () => {
     setShowFileExplorer(false);
     setShowDevicePrompt(true);
+  };
+
+  // Close file explorer
+  const handleCloseExplorer = () => {
+    setShowFileExplorer(false);
   };
 
   return (
@@ -48,9 +52,15 @@ function App() {
         </div>
 
         {!showDevicePrompt && !showFileExplorer && (
-          <button onClick={() => setShowDevicePrompt(true)}>
-            Start
-          </button>
+          <div className="start-container">
+            <button 
+              onClick={() => setShowDevicePrompt(true)}
+              className="start-btn"
+            >
+              Get Started
+            </button>
+            <p className="sub-text">Insert a USB drive to begin</p>
+          </div>
         )}
 
         {showDevicePrompt && (
@@ -61,14 +71,28 @@ function App() {
         )}
 
         {showFileExplorer && (
-          <div className="file-explorer-wrapper">
-            <div className="file-explorer-header">
-              <button onClick={handleBackToUSB} className="back-to-usb-btn">
-                ← Change USB
-              </button>
-              <span className="usb-status">{syncStatus}</span>
+          <div className="file-explorer-overlay">
+            <div className="file-explorer-modal">
+              <div className="file-explorer-header">
+                <div className="header-left">
+                  <span className="usb-icon">💾</span>
+                  <span className="usb-label">{usbLabel}</span>
+                  <span className="usb-path">({usbPath})</span>
+                </div>
+                <div className="header-right">
+                  <button onClick={handleBackToUSB} className="header-btn">
+                    Change USB
+                  </button>
+                  <button onClick={handleCloseExplorer} className="header-btn close-btn">
+                    ✕
+                  </button>
+                </div>
+              </div>
+              <FileExplorer 
+                usbPath={usbPath}
+                onBack={handleBackToUSB}
+              />
             </div>
-            <FileExplorer initialPath={usbPath} />
           </div>
         )}
 

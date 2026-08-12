@@ -1,3 +1,4 @@
+// device_prompt.tsx
 import { useState, useEffect } from 'react';
 import USBPrompt from '../../assets/usb-data-transfer-svgrepo-com.svg';
 import '../../styles/device_prompt.css';
@@ -6,21 +7,18 @@ import { useUSBDetection } from '../../hooks/useUSBDetection';
 
 interface InsertDeviceProps {
     onClose: () => void;
-    onUSBDetected: (usbPath: string) => void;
+    onUSBDetected: (usbPath: string, usbLabel: string) => void;
 }
 
 export function InsertDevice({ onClose, onUSBDetected }: InsertDeviceProps) {
     const [isVisible, setIsVisible] = useState(true);
-    const [showExplorer, setShowExplorer] = useState(false);
     const { 
         usbDevices, 
         selectedUSB, 
         setSelectedUSB, 
         isScanning,
-        isSyncing,
-        syncStatus,
         error,
-        syncUSB
+        detectUSB
     } = useUSBDetection();
 
     const handleClose = () => {
@@ -30,18 +28,16 @@ export function InsertDevice({ onClose, onUSBDetected }: InsertDeviceProps) {
         }, 300);
     };
 
-    const handleGetStarted = async () => {
+    const handleGetStarted = () => {
         if (selectedUSB) {
-            try {
-                await syncUSB();
-                setShowExplorer(true);
-                // Notify parent component to show file explorer
-                onUSBDetected(selectedUSB.path);
-                handleClose();
-            } catch (err) {
-                console.error('Sync failed:', err);
-            }
+            // Navigate to file explorer with the selected USB
+            onUSBDetected(selectedUSB.path, selectedUSB.label);
+            handleClose();
         }
+    };
+
+    const handleRetry = () => {
+        detectUSB();
     };
 
     return (
@@ -52,7 +48,7 @@ export function InsertDevice({ onClose, onUSBDetected }: InsertDeviceProps) {
                 <p>Please connect your USB drive to continue</p>
                 
                 {isScanning ? (
-                    <div>
+                    <div className="scanning-container">
                         <LoadingWidget />
                         <p>Scanning for USB devices...</p>
                     </div>
@@ -62,34 +58,46 @@ export function InsertDevice({ onClose, onUSBDetected }: InsertDeviceProps) {
                         <p style={{ fontSize: '0.8em', color: '#666' }}>
                             Please insert a USB drive and wait for detection
                         </p>
+                        <button onClick={handleRetry} className="retry-btn">
+                            Retry Scan
+                        </button>
                     </div>
                 ) : (
-                    <div className="usb-device-info">
-                        <p>✅ USB detected: <strong>{selectedUSB?.label}</strong></p>
-                        <p style={{ fontSize: '0.8em', color: '#666' }}>
-                            Path: {selectedUSB?.path}
-                        </p>
-                        {syncStatus && (
-                            <p className="sync-status">{syncStatus}</p>
-                        )}
+                    <div className="usb-selection">
+                        <div className="device-selection">
+                            <label>Select USB Drive:</label>
+                            <select 
+                                value={selectedUSB?.path || ''} 
+                                onChange={(e) => {
+                                    const device = usbDevices.find(d => d.path === e.target.value);
+                                    if (device) setSelectedUSB(device);
+                                }}
+                                className="usb-select"
+                            >
+                                {usbDevices.map((device) => (
+                                    <option key={device.path} value={device.path}>
+                                        {device.label} ({device.path})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        
                         {error && (
-                            <p className="error-message">{error}</p>
+                            <p className="error-message">❌ {error}</p>
                         )}
+                        
                         <button 
                             onClick={handleGetStarted}
-                            disabled={isSyncing}
                             className="get-started-btn"
                         >
-                            {isSyncing ? 'Syncing...' : 'Get Started'}
+                            Browse Files
                         </button>
                     </div>
                 )}
                 
-                {!isScanning && (
-                    <button onClick={handleClose} className="close-btn">
-                        Cancel
-                    </button>
-                )}
+                <button onClick={handleClose} className="close-btn">
+                    Cancel
+                </button>
             </div>
         </div>
     );

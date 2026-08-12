@@ -20,15 +20,23 @@ pub struct USBDevice {
     pub is_removable: bool,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FileInfo {
+    pub name: String,
+    pub path: String,
+    pub is_folder: bool,
+    pub size: u64,
+    pub extension: Option<String>,
+}
+
 #[tauri::command]
 fn detect_usb_devices() -> Vec<USBDevice> {
     let mut devices = Vec::new();
     
     #[cfg(target_os = "windows")]
     {
-        // Use the correct winapi imports
         use winapi::um::fileapi::GetLogicalDrives;
-        use winapi::um::winbase::GetDriveTypeW;
+        use winapi::um::fileapi::GetDriveTypeW;
         
         unsafe {
             let drives = GetLogicalDrives();
@@ -37,7 +45,6 @@ fn detect_usb_devices() -> Vec<USBDevice> {
                     let drive_letter = (b'A' + i as u8) as char;
                     let drive_path = format!("{}:\\", drive_letter);
                     
-                    // Convert to wide string
                     let wide_path: Vec<u16> = drive_path.encode_utf16().chain(Some(0)).collect();
                     let drive_type = GetDriveTypeW(wide_path.as_ptr());
                     
@@ -101,27 +108,145 @@ fn detect_usb_devices() -> Vec<USBDevice> {
 }
 
 #[tauri::command]
-fn sync_usb_content(usb_path: String, sync_folder: String) -> Result<String, String> {
-    if let Err(e) = fs::create_dir_all(&sync_folder) {
-        return Err(format!("Failed to create sync folder: {}", e));
+fn read_usb_directory(usb_path: String, sub_path: Option<String>) -> Result<Vec<FileInfo>, String> {
+    let base_path = PathBuf::from(&usb_path);
+    let target_path = match sub_path {
+        Some(sub) => base_path.join(sub),
+        None => base_path,
+    };
+    
+    if !target_path.exists() {
+        return Err("Path does not exist".to_string());
     }
     
-    let usb_path_buf = PathBuf::from(&usb_path);
-    let sync_folder_buf = PathBuf::from(&sync_folder);
-    
-    if !usb_path_buf.exists() {
-        return Err("USB path does not exist".to_string());
+    if !target_path.is_dir() {
+        return Err("Path is not a directory".to_string());
     }
     
-    match copy_dir_recursive(&usb_path_buf, &sync_folder_buf) {
-        Ok(_) => Ok(format!("Successfully synced USB content to {}", sync_folder)),
-        Err(e) => Err(format!("Failed to sync USB content: {}", e)),
+    let mut files = Vec::new();
+    
+    match fs::read_dir(&target_path) {
+        Ok(entries) => {
+            for entry in entries {
+                match entry {
+                    Ok(entry) => {
+                        let file_name = entry.file_name();
+                        let name = file_name.to_string_lossy().to_string();
+                        let path = entry.path();
+                        let metadata = match fs::metadata(&path) {
+                            Ok(meta) => meta,
+                            Err(_) => continue,
+                        };
+                        
+                        let is_folder = metadata.is_dir();
+                        let size = metadata.len();
+                        let extension = path.extension()
+                            .and_then(|ext| ext.to_str())
+                            .map(|s| s.to_string());
+                        
+                        files.push(FileInfo {
+                            name,
+                            path: path.display().to_string(),
+                            is_folder,
+                            size,
+                            extension,
+                        });
+                    }
+                    Err(_) => continue,
+                }
+            }
+        }
+        Err(e) => return Err(format!("Failed to read directory: {}", e)),
     }
+    
+    // Sort files: folders first, then files alphabetically
+    files.sort_by(|a, b| {
+        if a.is_folder && !b.is_folder {
+            std::cmp::Ordering::Less
+        } else if !a.is_folder && b.is_folder {
+            std::cmp::Ordering::Greater
+        } else {
+            a.name.to_lowercase().cmp(&b.name.to_lowercase())
+        }
+    });
+    
+    Ok(files)
+}
+
+#[tauri::command]
+fn read_file_content(usb_path: String, file_path: String) -> Result<String, String> {
+    let full_path = PathBuf::from(&usb_path).join(&file_path);
+    
+    if !full_path.exists() {
+        return Err("File does not exist".to_string());
+    }
+    
+    if full_path.is_dir() {
+        return Err("Path is a directory, not a file".to_string());
+    }
+    
+    // Check if it's a text file (you can expand this list)
+    let extension = full_path.extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    
+    let text_extensions = vec!["txt", "pdf", "doc", "docx", "rtf", "md", "json", "xml", "html", "csv"];
+    
+    if text_extensions.contains(&extension.as_str()) {
+        // Read as text
+        match fs::read_to_string(&full_path) {
+            Ok(content) => Ok(content),
+            Err(e) => Err(format!("Failed to read file: {}", e)),
+        }
+    } else {
+        // For binary files, read as base64 or just return file info
+        match fs::read(&full_path) {
+            Ok(data) => {
+                // Return base64 encoded data
+                Ok(base64::encode(&data))
+            }
+            Err(e) => Err(format!("Failed to read file: {}", e)),
+        }
+    }
+}
+
+#[tauri::command]
+fn get_file_info(usb_path: String, file_path: String) -> Result<FileInfo, String> {
+    let full_path = PathBuf::from(&usb_path).join(&file_path);
+    
+    if !full_path.exists() {
+        return Err("File does not exist".to_string());
+    }
+    
+    let metadata = match fs::metadata(&full_path) {
+        Ok(meta) => meta,
+        Err(e) => return Err(format!("Failed to get file metadata: {}", e)),
+    };
+    
+    let name = full_path.file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("Unknown")
+        .to_string();
+    
+    let is_folder = metadata.is_dir();
+    let size = metadata.len();
+    let extension = full_path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|s| s.to_string());
+    
+    Ok(FileInfo {
+        name,
+        path: full_path.display().to_string(),
+        is_folder,
+        size,
+        extension,
+    })
 }
 
 #[cfg(target_os = "windows")]
 fn get_volume_label(drive_path: &str) -> Option<String> {
-    use winapi::um::winbase::GetVolumeInformationW;
+    use winapi::um::fileapi::GetVolumeInformationW;
     
     let wide_path: Vec<u16> = format!("{}\0", drive_path)
         .encode_utf16()
@@ -160,26 +285,6 @@ fn get_volume_label(_drive_path: &str) -> Option<String> {
     None
 }
 
-fn copy_dir_recursive(src: &PathBuf, dst: &PathBuf) -> Result<(), std::io::Error> {
-    if !dst.exists() {
-        fs::create_dir_all(dst)?;
-    }
-    
-    for entry in fs::read_dir(src)? {
-        let entry = entry?;
-        let file_type = entry.file_type()?;
-        let src_path = entry.path();
-        let dst_path = dst.join(entry.file_name());
-        
-        if file_type.is_dir() {
-            copy_dir_recursive(&src_path, &dst_path)?;
-        } else {
-            fs::copy(&src_path, &dst_path)?;
-        }
-    }
-    Ok(())
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -187,8 +292,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             greet, 
             app_version, 
-            sync_usb_content,
-            detect_usb_devices
+            detect_usb_devices,
+            read_usb_directory,
+            read_file_content,
+            get_file_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
