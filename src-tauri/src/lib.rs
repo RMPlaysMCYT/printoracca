@@ -52,6 +52,7 @@ fn detect_usb_devices()->Vec<USBDevice>{
             }
         }
     }
+    devices
 }
 
 
