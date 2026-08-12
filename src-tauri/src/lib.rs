@@ -9,6 +9,15 @@ fn app_version() -> String {
     env!("CARGO_PKG_VERSION").into()
 }
 
+
+#[derive(Debug,Serialize,Deserialize,Clone)]
+pub struct USBDevice{
+    pub path: String;
+    pub label: String;
+    pub is_removable: bool;
+}
+
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
