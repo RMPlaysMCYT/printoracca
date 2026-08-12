@@ -27,7 +27,7 @@
 
 .container {
   margin: 0;
-  padding: 40vh;
+  padding: 20vh;
   gap: 40px;
   display: flex;
   flex-direction: column;
