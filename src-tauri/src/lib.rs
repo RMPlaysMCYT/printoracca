@@ -303,6 +303,7 @@ pub fn run() {
             read_usb_directory,
             read_file_content,
             get_file_info,
+            read_file_library,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
