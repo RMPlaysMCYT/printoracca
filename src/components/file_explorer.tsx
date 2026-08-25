@@ -1,5 +1,5 @@
 // FileExplorer.tsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { invoke } from '@tauri-apps/api/core';
 
 import { renderAsync } from "docx-preview";
@@ -36,6 +36,7 @@ export default function FileExplorer({ usbPath, onBack }: FileExplorerProps) {
   const [binaryData, setBinaryData] = useState<ArrayBuffer | null>(null);
   const [numPdfPages, setNumPdfPages] = useState<number | null>(null);
 
+  const docxContainerRef = useRef<HTMLDivElement>(null);
 
   // Load directory contents
   async function loadDirectory(subPath?: string) {
