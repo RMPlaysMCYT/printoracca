@@ -2,6 +2,14 @@
 import React, { useState, useEffect } from "react";
 import { invoke } from '@tauri-apps/api/core';
 
+import { renderAsync } from "docx-preview";
+import { Document, Page, pdfjs } from "react-pdf";
+
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.min.mjs",
+  import.meta.url
+).toString();
+
 interface FileInfo {
   name: string;
   path: string;
@@ -23,6 +31,11 @@ export default function FileExplorer({ usbPath, onBack }: FileExplorerProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<FileInfo | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
+
+  const [textContent, setTextContent] = useState<String | null>(null);
+  const [binaryData, setBinaryData] = useState<ArrayBuffer | null>(null);
+  const [numPdfPages, setNumPdfPages] = useState<number | null>(null);
+
 
   // Load directory contents
   async function loadDirectory(subPath?: string) {
