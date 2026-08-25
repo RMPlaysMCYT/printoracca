@@ -5,6 +5,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { renderAsync } from "docx-preview";
 import { Document, Page, pdfjs } from "react-pdf";
 
+
+
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
   import.meta.url
@@ -42,8 +44,7 @@ export default function FileExplorer({ usbPath, onBack }: FileExplorerProps) {
   async function loadDirectory(subPath?: string) {
     setIsLoading(true);
     setError(null);
-    setFileContent(null);
-    setSelectedFile(null);
+    setClearPreview();
     
     try {
       const result = await invoke<FileInfo[]>('read_usb_directory', {
@@ -74,6 +75,14 @@ export default function FileExplorer({ usbPath, onBack }: FileExplorerProps) {
     setBinaryData(null);
     setNumPdfPages(null);
   }
+
+  useEffect(()=>{
+    const ext = selectedFile?.extension?.toLowerCase();
+    if(ext === "docx" && binaryData && docxContainerRef.current){
+      docxContainerRef.current.innerHTML="";
+      renderAsync(binaryData, docxContainerRef.current);
+    }
+  }, [binaryData, selectedFile]);
 
   // Handle folder click
   async function handleFolderClick(folder: FileInfo) {
