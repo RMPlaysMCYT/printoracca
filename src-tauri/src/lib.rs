@@ -4,6 +4,13 @@ use std::fs;
 use serde::{Deserialize, Serialize};
 
 #[tauri::command]
+fn read_file_library(usb_path: String, file_path: String)->Result<Vec<u8>,String>{
+    let full_path = std::path::Path::new(&usb_path).join(file_path);
+    std::fs::read(full_path).map_err(|e| e.to_string())
+}
+
+
+#[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
