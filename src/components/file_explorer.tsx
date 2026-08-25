@@ -66,6 +66,14 @@ export default function FileExplorer({ usbPath, onBack }: FileExplorerProps) {
     }
   }, [usbPath]);
 
+
+  function setClearPreview(){
+    setSelectedFile(null);
+    setTextContent(null);
+    setBinaryData(null);
+    setNumPdfPages(null);
+  }
+
   // Handle folder click
   async function handleFolderClick(folder: FileInfo) {
     if (!folder.is_folder) return;
