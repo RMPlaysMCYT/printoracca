@@ -27,12 +27,13 @@
 
 .container {
   margin: 0;
-  padding: 20vh;
+  padding: 22vh;
   gap: 40px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   text-align: center;
+  align-items: center;
 }
 
 .logo {

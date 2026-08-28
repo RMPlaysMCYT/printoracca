@@ -1,4 +1,6 @@
 .footerCss{
+    position: relative;
+    bottom: 60px;
     display: flex;
     justify-content: center;
 }

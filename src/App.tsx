@@ -46,7 +46,7 @@ function App() {
 
   return (
     <main className="container">
-      <div className="content">
+      <div className="content"> 
         <div className="TitleCard">
           <h1>PROJECT PISO PRINT 1.0.0</h1>
         </div>
