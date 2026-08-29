@@ -45,3 +45,7 @@
     transform: translateY(30px) scale(0.95);
     opacity: 0;
 }
+
+.close-btn{
+    margin: 10px 0 0 0 ;
+}
