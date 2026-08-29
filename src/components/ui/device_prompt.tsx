@@ -43,7 +43,7 @@ export function InsertDevice({ onClose, onUSBDetected }: InsertDeviceProps) {
     return (
         <div className={`insert-device-overlay ${isVisible ? 'visible' : 'hidden'}`}>
             <div className={`insert-device-container ${isVisible ? 'visible' : 'hidden'}`}>
-                <img src={USBPrompt} alt="Insert USB" width="100" height="100" />
+                <img className='UsbImgPrompt' src={USBPrompt} alt="Insert USB" width="100" height="100" />
                 <h1>Insert USB Device</h1>
                 <p>Please connect your USB drive to continue</p>
                 
