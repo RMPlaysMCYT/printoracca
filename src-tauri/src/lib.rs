@@ -1,6 +1,8 @@
 // lib.rs
 use std::path::PathBuf;
 use std::fs;
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 
 #[tauri::command]
@@ -114,6 +116,13 @@ fn detect_usb_devices() -> Vec<USBDevice> {
     devices
 }
 
+fn is_supported_print_document(extension: &str) -> bool {
+    matches!(
+        extension.to_ascii_lowercase().as_str(),
+        "pdf" | "doc" | "docx" | "txt" | "rtf" | "md" | "json" | "xml" | "html" | "csv"
+    )
+}
+
 #[tauri::command]
 fn read_usb_directory(usb_path: String, sub_path: Option<String>) -> Result<Vec<FileInfo>, String> {
     let base_path = PathBuf::from(&usb_path);
@@ -121,17 +130,17 @@ fn read_usb_directory(usb_path: String, sub_path: Option<String>) -> Result<Vec<
         Some(sub) => base_path.join(sub),
         None => base_path,
     };
-    
+
     if !target_path.exists() {
         return Err("Path does not exist".to_string());
     }
-    
+
     if !target_path.is_dir() {
         return Err("Path is not a directory".to_string());
     }
-    
+
     let mut files = Vec::new();
-    
+
     match fs::read_dir(&target_path) {
         Ok(entries) => {
             for entry in entries {
@@ -144,13 +153,20 @@ fn read_usb_directory(usb_path: String, sub_path: Option<String>) -> Result<Vec<
                             Ok(meta) => meta,
                             Err(_) => continue,
                         };
-                        
+
                         let is_folder = metadata.is_dir();
                         let size = metadata.len();
                         let extension = path.extension()
                             .and_then(|ext| ext.to_str())
                             .map(|s| s.to_string());
-                        
+
+                        if !is_folder {
+                            let some_extension = extension.as_deref().unwrap_or("");
+                            if !is_supported_print_document(some_extension) {
+                                continue;
+                            }
+                        }
+
                         files.push(FileInfo {
                             name,
                             path: path.display().to_string(),
@@ -165,7 +181,7 @@ fn read_usb_directory(usb_path: String, sub_path: Option<String>) -> Result<Vec<
         }
         Err(e) => return Err(format!("Failed to read directory: {}", e)),
     }
-    
+
     // Sort files: folders first, then files alphabetically
     files.sort_by(|a, b| {
         if a.is_folder && !b.is_folder {
@@ -176,43 +192,41 @@ fn read_usb_directory(usb_path: String, sub_path: Option<String>) -> Result<Vec<
             a.name.to_lowercase().cmp(&b.name.to_lowercase())
         }
     });
-    
+
     Ok(files)
 }
 
 #[tauri::command]
 fn read_file_content(usb_path: String, file_path: String) -> Result<String, String> {
     let full_path = PathBuf::from(&usb_path).join(&file_path);
-    
+
     if !full_path.exists() {
         return Err("File does not exist".to_string());
     }
-    
+
     if full_path.is_dir() {
         return Err("Path is a directory, not a file".to_string());
     }
-    
-    // Check if it's a text file (you can expand this list)
+
     let extension = full_path.extension()
         .and_then(|ext| ext.to_str())
         .unwrap_or("")
         .to_lowercase();
-    
-    let text_extensions = vec!["txt", "pdf", "doc", "docx", "rtf", "md", "json", "xml", "html", "csv"];
-    
+
+    let text_extensions = vec!["txt", "rtf", "md", "json", "xml", "html", "csv"];
+
+    if matches!(extension.as_str(), "pdf" | "doc" | "docx") {
+        return Err(format!("{} preview is handled as a binary document instead of plain text.", extension));
+    }
+
     if text_extensions.contains(&extension.as_str()) {
-        // Read as text
         match fs::read_to_string(&full_path) {
             Ok(content) => Ok(content),
             Err(e) => Err(format!("Failed to read file: {}", e)),
         }
     } else {
-        // For binary files, read as base64 or just return file info
         match fs::read(&full_path) {
-            Ok(data) => {
-                // Return base64 encoded data
-                Ok(base64::encode(&data))
-            }
+            Ok(data) => Ok(STANDARD.encode(&data)),
             Err(e) => Err(format!("Failed to read file: {}", e)),
         }
     }

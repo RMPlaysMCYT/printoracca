@@ -1,5 +1,5 @@
 // FileExplorer.tsx
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { invoke } from '@tauri-apps/api/core';
 
 import { renderAsync } from "docx-preview";
@@ -12,6 +12,29 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
   import.meta.url
 ).toString();
+
+const PRINTABLE_DOCUMENT_EXTENSIONS = new Set([
+  "pdf",
+  "doc",
+  "docx",
+  "txt",
+  "rtf",
+  "md",
+  "json",
+  "xml",
+  "html",
+  "csv",
+]);
+
+const TEXT_PREVIEW_EXTENSIONS = new Set([
+  "txt",
+  "rtf",
+  "md",
+  "json",
+  "xml",
+  "html",
+  "csv",
+]);
 
 interface FileInfo {
   name: string;
@@ -26,6 +49,15 @@ interface FileExplorerProps {
   onBack?: () => void;
 }
 
+function getFileExtension(file: FileInfo | null | undefined): string {
+  return file?.extension?.toLowerCase() ?? "";
+}
+
+function isPrintableDocument(file: FileInfo): boolean {
+  if (file.is_folder) return true;
+  return PRINTABLE_DOCUMENT_EXTENSIONS.has(getFileExtension(file));
+}
+
 export default function FileExplorer({ usbPath, onBack }: FileExplorerProps) {
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [currentPath, setCurrentPath] = useState<string>("");
@@ -34,25 +66,27 @@ export default function FileExplorer({ usbPath, onBack }: FileExplorerProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<FileInfo | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
-
-  const [textContent, setTextContent] = useState<String | null>(null);
   const [binaryData, setBinaryData] = useState<ArrayBuffer | null>(null);
   const [numPdfPages, setNumPdfPages] = useState<number | null>(null);
 
   const docxContainerRef = useRef<HTMLDivElement>(null);
+
+  const pdfBlob = selectedFile && getFileExtension(selectedFile) === "pdf" && binaryData
+    ? new Blob([binaryData], { type: "application/pdf" })
+    : undefined;
 
   // Load directory contents
   async function loadDirectory(subPath?: string) {
     setIsLoading(true);
     setError(null);
     setClearPreview();
-    
+
     try {
       const result = await invoke<FileInfo[]>('read_usb_directory', {
         usbPath: usbPath,
         subPath: subPath || null
       });
-      setFiles(result);
+      setFiles((result ?? []).filter((file) => isPrintableDocument(file)));
       setCurrentPath(subPath || "");
     } catch (err) {
       setError('Failed to read directory');
@@ -69,18 +103,17 @@ export default function FileExplorer({ usbPath, onBack }: FileExplorerProps) {
     }
   }, [usbPath]);
 
-
-  function setClearPreview(){
+  function setClearPreview() {
     setSelectedFile(null);
-    setTextContent(null);
+    setFileContent(null);
     setBinaryData(null);
     setNumPdfPages(null);
   }
 
-  useEffect(()=>{
-    const ext = selectedFile?.extension?.toLowerCase();
-    if(ext === "docx" && binaryData && docxContainerRef.current){
-      docxContainerRef.current.innerHTML="";
+  useEffect(() => {
+    const ext = getFileExtension(selectedFile);
+    if (ext === "docx" && binaryData && docxContainerRef.current) {
+      docxContainerRef.current.innerHTML = "";
       renderAsync(binaryData, docxContainerRef.current);
     }
   }, [binaryData, selectedFile]);
@@ -88,7 +121,7 @@ export default function FileExplorer({ usbPath, onBack }: FileExplorerProps) {
   // Handle folder click
   async function handleFolderClick(folder: FileInfo) {
     if (!folder.is_folder) return;
-    
+
     const relativePath = folder.path.replace(usbPath, '').replace(/^[\\/]/, '');
     setHistory([...history, currentPath]);
     await loadDirectory(relativePath);
@@ -97,18 +130,37 @@ export default function FileExplorer({ usbPath, onBack }: FileExplorerProps) {
   // Handle file click
   async function handleFileClick(file: FileInfo) {
     if (file.is_folder) return;
-    
+
     setSelectedFile(file);
     setFileContent(null);
-    
+    setBinaryData(null);
+    setNumPdfPages(null);
+
+    const ext = getFileExtension(file);
+
     try {
-      const content = await invoke<string>('read_file_content', {
-        usbPath: usbPath,
-        filePath: file.path.replace(usbPath, '').replace(/^[\\/]/, '')
-      });
-      setFileContent(content);
+      if (TEXT_PREVIEW_EXTENSIONS.has(ext)) {
+        const content = await invoke<string>('read_file_content', {
+          usbPath: usbPath,
+          filePath: file.path.replace(usbPath, '').replace(/^[\\/]/, '')
+        });
+        setFileContent(content);
+        return;
+      }
+
+      if (ext === 'pdf' || ext === 'docx') {
+        const fileBytes = await invoke<number[]>('read_file_library', {
+          usbPath: usbPath,
+          filePath: file.path.replace(usbPath, '').replace(/^[\\/]/, '')
+        });
+
+        setBinaryData(Uint8Array.from(fileBytes).buffer as ArrayBuffer);
+        return;
+      }
+
+      setError('This file type cannot be previewed in the print list.');
     } catch (err) {
-      setError('Failed to read file content');
+      setError('Failed to read file');
       console.error('Read file error:', err);
     }
   }
@@ -136,8 +188,8 @@ export default function FileExplorer({ usbPath, onBack }: FileExplorerProps) {
   // Get file icon
   function getFileIcon(file: FileInfo): string {
     if (file.is_folder) return '📁';
-    
-    const ext = file.extension?.toLowerCase() || '';
+
+    const ext = getFileExtension(file);
     const iconMap: { [key: string]: string } = {
       'pdf': '📄',
       'doc': '📝',
@@ -158,12 +210,14 @@ export default function FileExplorer({ usbPath, onBack }: FileExplorerProps) {
     return iconMap[ext] || '📄';
   }
 
+  const hasPreview = selectedFile && (fileContent !== null || binaryData !== null);
+
   return (
     <div className="file-explorer">
       <div className="explorer-nav">
         <div className="nav-left">
-          <button 
-            onClick={handleBackClick} 
+          <button
+            onClick={handleBackClick}
             disabled={history.length === 0 || isLoading}
             className="nav-btn"
           >
@@ -181,7 +235,7 @@ export default function FileExplorer({ usbPath, onBack }: FileExplorerProps) {
           </span>
         </div>
       </div>
-      
+
       {error && (
         <div className="error-message">
           ❌ {error}
@@ -190,7 +244,7 @@ export default function FileExplorer({ usbPath, onBack }: FileExplorerProps) {
           </button>
         </div>
       )}
-      
+
       {isLoading ? (
         <div className="loading-container">
           <div className="spinner"></div>
@@ -198,21 +252,55 @@ export default function FileExplorer({ usbPath, onBack }: FileExplorerProps) {
         </div>
       ) : (
         <div className="explorer-content">
-          {selectedFile && fileContent !== null ? (
+          {hasPreview && selectedFile ? (
             <div className="file-preview">
               <div className="preview-header">
                 <button onClick={() => {
                   setSelectedFile(null);
                   setFileContent(null);
+                  setBinaryData(null);
+                  setNumPdfPages(null);
                 }} className="back-btn">
                   ← Back to files
                 </button>
                 <span className="file-name">{selectedFile.name}</span>
                 <span className="file-size-preview">{formatSize(selectedFile.size)}</span>
               </div>
-              <div className="preview-content">
-                <pre className="file-text">{fileContent}</pre>
-              </div>
+
+              {getFileExtension(selectedFile) === 'pdf' && pdfBlob ? (
+                <div className="preview-content pdf-preview">
+                  <Document
+                    file={pdfBlob}
+                    onLoadSuccess={({ numPages }) => setNumPdfPages(numPages)}
+                    onLoadError={(pdfError) => {
+                      console.error('PDF load error:', pdfError);
+                      setError('Failed to load PDF preview');
+                    }}
+                    loading={(
+                      <div className="loading-container">
+                        <div className="spinner"></div>
+                        <p>Loading PDF...</p>
+                      </div>
+                    )}
+                  >
+                    {Array.from({ length: numPdfPages ?? 0 }, (_, index) => (
+                      <Page key={index} pageNumber={index + 1} width={700} />
+                    ))}
+                  </Document>
+                </div>
+              ) : getFileExtension(selectedFile) === 'docx' && binaryData ? (
+                <div className="preview-content docx-preview">
+                  <div ref={docxContainerRef} />
+                </div>
+              ) : fileContent !== null ? (
+                <div className="preview-content">
+                  <pre className="file-text">{fileContent}</pre>
+                </div>
+              ) : (
+                <div className="preview-content empty-preview">
+                  <p>Unable to preview this file.</p>
+                </div>
+              )}
             </div>
           ) : (
             <div className="file-grid">
